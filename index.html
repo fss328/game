@@ -227,7 +227,7 @@
         </div>
     </div>
     <div id="controls-bottom">
-        <button id="getHintButton">✨ 獲取提示 ✨</button>
+        <button id="undoButton">↩️ 撤銷上一動作</button>
         <button id="getSummaryButton" style="display: none;">✨ 遊戲總結 ✨</button>
         <button id="resetButton">重新開始</button>
     </div>
@@ -238,8 +238,8 @@
         const ctx = canvas.getContext('2d');
         const messageBox = document.getElementById('message-box');
         const resetButton = document.getElementById('resetButton');
-        const getHintButton = document.getElementById('getHintButton');
-        const getSummaryButton = document.getElementById('getSummaryButton'); // 新增的獲取總結按鈕
+        const undoButton = document.getElementById('undoButton'); // 變更為撤銷按鈕
+        const getSummaryButton = document.getElementById('getSummaryButton');
 
         // 遊戲配置
         const BOARD_SIZE = 4; // 4x4 棋盤
@@ -260,7 +260,7 @@
         let selectedPiece = null; // 當前選中的棋子 { piece: {}, source: 'stack' | 'board', row: int, col: int, stackIndex: int }
         let isGameOver = false; // 遊戲是否結束
         let winnerPlayer = 0; // 獲勝玩家的編號
-        let gameHistory = []; // 儲存遊戲歷史，用於總結
+        let gameHistory = []; // 儲存遊戲歷史，用於總結和撤銷
 
         // 煙火效果相關變數
         let particles = [];
@@ -296,7 +296,7 @@
             winnerPlayer = 0; // 重置獲勝玩家
             gameHistory = []; // 清空遊戲歷史
             messageBox.textContent = ''; // 清空訊息
-            getHintButton.disabled = false; // 啟用提示按鈕
+            undoButton.disabled = true; // 初始時禁用撤銷按鈕
             getSummaryButton.style.display = 'none'; // 隱藏總結按鈕
 
             // 清除任何正在進行的煙火動畫
@@ -625,10 +625,17 @@
             // 記錄當前移動
             const move = {
                 player: currentPlayer,
-                pieceSizeIndex: selectedPieceObj.originalSizeIndex,
-                pieceColor: selectedPieceObj.color === PIECE_COLORS.PLAYER1 ? 'Player1' : 'Player2',
-                type: selectedPiece.source === 'stack' ? 'place' : 'move',
-                target: coordsToNotation(targetRow, targetCol)
+                movedPiece: selectedPieceObj, // 儲存棋子物件本身
+                from: {
+                    type: selectedPiece.source,
+                    row: selectedPiece.source === 'board' ? selectedPiece.row : undefined,
+                    col: selectedPiece.source === 'board' ? selectedPiece.col : undefined,
+                    stackIndex: selectedPiece.source === 'stack' ? selectedPiece.stackIndex : undefined
+                },
+                to: {
+                    row: targetRow,
+                    col: targetCol
+                }
             };
 
             if (selectedPiece.source === 'board') {
@@ -655,7 +662,6 @@
                     renderGame();
                     return;
                 }
-                move.source = coordsToNotation(sourceRow, sourceCol);
             }
 
             // 檢查放置/覆蓋規則
@@ -684,6 +690,7 @@
 
             gameHistory.push(move); // 記錄移動歷史
             selectedPiece = null; // 清除選中的棋子
+            undoButton.disabled = false; // 有動作後啟用撤銷按鈕
 
             // 檢查勝利條件：先檢查當前玩家，再檢查對手
             let winner = 0;
@@ -700,7 +707,7 @@
                 isGameOver = true;
                 winnerPlayer = winner; // 儲存獲勝玩家
                 updateMessage(`恭喜！玩家 ${winner} 獲勝！`);
-                getHintButton.disabled = true; // 遊戲結束，禁用提示按鈕
+                undoButton.disabled = true; // 遊戲結束，禁用撤銷按鈕
                 getSummaryButton.style.display = 'block'; // 顯示總結按鈕
                 startFireworks(); // 觸發煙火效果
             } else {
@@ -865,93 +872,55 @@
         }
 
         /**
-         * 獲取 LLM 提示
+         * 撤銷上一動作
          */
-        async function getLLMHint() {
-            if (isGameOver) {
-                updateMessage('遊戲已結束，無法獲取提示。');
+        async function undoLastMove() {
+            if (gameHistory.length === 0) {
+                updateMessage('沒有可以撤銷的動作。');
                 return;
             }
-            getHintButton.disabled = true; // 禁用按鈕防止重複點擊
-            const originalMessage = messageBox.textContent;
-            updateMessage('✨ 正在思考最佳策略... ✨');
-
-            // 構建棋盤狀態的文字表示
-            let boardStateText = "Current board state:\n";
-            for (let r = 0; r < BOARD_SIZE; r++) {
-                boardStateText += `Row ${r}: [`;
-                for (let c = 0; c < BOARD_SIZE; c++) {
-                    const stack = board[r][c];
-                    if (stack.length > 0) {
-                        const topPiece = stack[stack.length - 1];
-                        const playerPrefix = topPiece.color === PIECE_COLORS.PLAYER1 ? 'P1' : 'P2';
-                        boardStateText += `${playerPrefix}-${BOARD_SIZE - topPiece.originalSizeIndex}`; // P1-1 (最大), P1-4 (最小)
-                    } else {
-                        boardStateText += `E`; // Empty
-                    }
-                    if (c < BOARD_SIZE - 1) {
-                        boardStateText += ", ";
-                    }
-                }
-                boardStateText += "]\n";
+            if (isGameOver) {
+                updateMessage('遊戲已結束，無法撤銷動作。請重新開始遊戲。');
+                return;
             }
 
-            // 構建當前玩家可用棋子的文字表示
-            const currentPlayerPieces = currentPlayer === 1 ? player1Pieces : player2Pieces;
-            let availablePiecesText = `Player ${currentPlayer}'s available pieces: [`;
-            let flatAvailablePieces = [];
-            currentPlayerPieces.forEach(stack => {
-                // 只考慮每疊最上面的棋子
-                if (stack.length > 0) {
-                    const topPiece = stack[stack.length - 1];
-                    const playerPrefix = topPiece.color === PIECE_COLORS.PLAYER1 ? 'P1' : 'P2';
-                    flatAvailablePieces.push(`${playerPrefix}-${BOARD_SIZE - topPiece.originalSizeIndex}`);
-                }
-            });
-            availablePiecesText += flatAvailablePieces.join(', ') + "]\n";
+            undoButton.disabled = true; // 禁用按鈕防止重複點擊
+            getSummaryButton.style.display = 'none'; // 隱藏總結按鈕，因為遊戲狀態改變
 
-            const prompt = `
-${boardStateText}
-${availablePiecesText}
-Current player is Player ${currentPlayer} (color: ${currentPlayer === 1 ? '黑色' : '白色'}).
-Objective: Get four of your pieces (topmost piece in a stack) in a row, column, or diagonal. You can place a piece from your available pieces onto an empty spot or on top of a smaller piece (piece number 1 is largest, 4 is smallest). You can also move your topmost piece from one cell to an adjacent cell (horizontal, vertical, or diagonal) if the target cell is empty or has a smaller piece.
-Provide a concise strategic hint for Player ${currentPlayer}'s next move. Focus on how to achieve a 4-in-a-row or block the opponent. Do not suggest specific coordinates or piece IDs, just general strategy. Respond in Traditional Chinese.
-`;
+            const lastMove = gameHistory.pop();
+            const { player, movedPiece, from, to } = lastMove;
 
-            let chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-            const apiKey = ""; // Canvas will automatically provide the API key
-
-            try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API request failed with status ${response.status}`);
-                }
-
-                const result = await response.json();
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const hint = result.candidates[0].content.parts[0].text;
-                    updateMessage(`AI提示：${hint}`);
-                } else {
-                    updateMessage('無法獲取提示，請稍後再試。');
-                    console.error('Gemini API returned an unexpected structure:', result);
-                }
-            } catch (error) {
-                console.error('Error fetching Gemini API hint:', error);
-                updateMessage('獲取提示時發生錯誤。');
-            } finally {
-                getHintButton.disabled = false; // 重新啟用按鈕
+            // 從目標位置移除棋子
+            const targetStack = board[to.row][to.col];
+            if (targetStack.length > 0 && targetStack[targetStack.length - 1].id === movedPiece.id) {
+                targetStack.pop();
+            } else {
+                console.error("錯誤：撤銷動作時，在預期目標位置找不到棋子。");
+                updateMessage("撤銷動作失敗：棋盤狀態不一致。");
+                gameHistory.push(lastMove); // 如果撤銷失敗，將動作放回歷史記錄
+                undoButton.disabled = gameHistory.length === 0;
+                return;
             }
+
+            // 將棋子放回其原始位置
+            if (from.type === 'stack') {
+                const playerStacks = player === 1 ? player1Pieces : player2Pieces;
+                playerStacks[from.stackIndex].push(movedPiece);
+            } else if (from.type === 'board') {
+                board[from.row][from.col].push(movedPiece);
+            }
+
+            // 切換回剛才撤銷動作的玩家
+            currentPlayer = player;
+            updateMessage(`玩家 ${currentPlayer} 撤銷了上一動作。`);
+
+            // 重新渲染遊戲
+            renderGame();
+
+            // 重新啟用撤銷按鈕（如果還有歷史記錄）
+            undoButton.disabled = gameHistory.length === 0;
         }
+
 
         /**
          * 獲取 LLM 遊戲總結
@@ -988,10 +957,10 @@ Provide a concise strategic hint for Player ${currentPlayer}'s next move. Focus 
             // 構建遊戲歷史的文字表示
             let historyText = "Moves made during the game:\n";
             gameHistory.forEach((move, index) => {
-                const pieceSize = BOARD_SIZE - move.pieceSizeIndex; // 轉換為1-4號棋
+                const pieceSize = BOARD_SIZE - move.movedPiece.originalSizeIndex; // 轉換為1-4號棋
                 const moveDescription = move.type === 'place'
-                    ? `Player ${move.player} placed piece ${pieceSize} at ${move.target}.`
-                    : `Player ${move.player} moved piece ${pieceSize} from ${move.source} to ${move.target}.`;
+                    ? `Player ${move.player} placed piece ${pieceSize} at ${move.to.row},${move.to.col}.`
+                    : `Player ${move.player} moved piece ${pieceSize} from ${move.from.row},${move.from.col} to ${move.to.row},${move.to.col}.`;
                 historyText += `${index + 1}. ${moveDescription}\n`;
             });
 
@@ -1044,8 +1013,8 @@ Please provide a concise summary of the game, highlighting key strategic moments
         // 事件監聽器
         canvas.addEventListener('click', handleCanvasClick);
         resetButton.addEventListener('click', initializeGame);
-        getHintButton.addEventListener('click', getLLMHint);
-        getSummaryButton.addEventListener('click', getLLMSummary); // 監聽獲取總結按鈕
+        undoButton.addEventListener('click', undoLastMove); // 監聽撤銷按鈕
+        getSummaryButton.addEventListener('click', getLLMSummary);
 
         // 初始化遊戲
         initializeGame();
