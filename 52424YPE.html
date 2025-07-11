@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>棋盤遊戲</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        #game-container {
+            display: flex; /* Changed to flex to arrange board and player stacks */
+            flex-direction: row; /* Arrange horizontally */
+            align-items: center; /* Vertically center items */
+            justify-content: center; /* Horizontally center content */
+            background-color: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            max-width: 95%; /* Allow more width for the new layout */
+            gap: 20px; /* Space between player stacks and board */
+            box-sizing: border-box;
+        }
+
+        #board-and-message-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0; /* Prevent shrinking on smaller screens */
+        }
+
+        #message-box {
+            background-color: #e0f7fa;
+            color: #00796b;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: bold;
+            text-align: center;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #b2ebf2;
+        }
+
+        canvas {
+            background-color: #a0522d; /* SaddleBrown for board */
+            border: 5px solid #8b4513; /* Sienna border */
+            border-radius: 10px;
+            display: block;
+            touch-action: none; /* Prevent default touch actions like scrolling */
+            max-width: 100%; /* Ensure canvas scales down on smaller screens */
+            height: auto; /* Maintain aspect ratio */
+        }
+
+        #controls-bottom { /* New wrapper for buttons below the main game area */
+            margin-top: 20px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px; /* Gap between buttons */
+        }
+
+        .player-stacks-wrapper {
+            display: flex;
+            flex-direction: column; /* Stack columns vertically */
+            gap: 60px; /* Increased gap between the three stacks (columns) to 60px */
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background-color: #f0f0f0;
+            justify-content: center;
+            align-items: center;
+            height: fit-content; /* Adjust height to content */
+            min-width: 100px; /* Ensure some width for the stack area */
+            box-sizing: border-box;
+        }
+
+        .player-stacks-wrapper.active {
+            border-color: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+        }
+
+        .player-stack-column {
+            display: flex;
+            flex-direction: column-reverse; /* Smallest at bottom */
+            align-items: center;
+            border: 1px dashed #bbb;
+            border-radius: 5px;
+            padding: 5px;
+            min-width: 60px; /* Adjust based on largest piece size */
+            min-height: 100px; /* Adjusted height for overlap */
+            justify-content: flex-end; /* Push pieces to the bottom */
+            position: relative; /* For absolute positioning of pieces */
+        }
+
+        .piece-preview {
+            border-radius: 50%;
+            position: absolute; /* Keep absolute for stacking within a column */
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: 1px solid rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex; /* For centering the number */
+            align-items: center;
+            justify-content: center;
+            color: black; /* Color for the number on the piece */
+            font-weight: bold;
+            font-size: 0.9em;
+            text-shadow: 0 0 2px rgba(255,255,255,0.7);
+            /* bottom will be calculated in JS */
+        }
+
+        .piece-preview.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.5);
+            border: 2px solid gold;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 800px) { /* Adjust breakpoint for new layout */
+            #game-container {
+                flex-direction: column; /* Stack vertically on smaller screens */
+                padding: 15px;
+                gap: 15px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+            #message-box {
+                font-size: 1em;
+                padding: 10px 15px;
+            }
+            .player-stacks-wrapper {
+                flex-direction: row; /* Display stacks horizontally within their wrapper */
+                flex-wrap: wrap; /* Allow stacks to wrap */
+                justify-content: center;
+                gap: 5px; /* Reduced gap for horizontal arrangement on small screens */
+                width: 100%; /* Take full width when stacked vertically */
+            }
+            .player-stack-column {
+                min-width: unset;
+                width: calc(33% - 10px); /* Approx 3 columns on small screens */
+                min-height: 100px;
+                padding: 3px;
+            }
+            .piece-preview {
+                position: absolute; /* Keep absolute for stacking within column */
+            }
+            button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>棋盤遊戲</h1>
+    <div id="game-container">
+        <!-- Player 2's stacks will be on the left -->
+        <div id="player2-stacks-wrapper" class="player-stacks-wrapper">
+            <!-- Player 2's three stacks will be rendered here -->
+        </div>
+
+        <div id="board-and-message-wrapper">
+            <div id="message-box"></div>
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <!-- Player 1's stacks will be on the right -->
+        <div id="player1-stacks-wrapper" class="player-stacks-wrapper">
+            <!-- Player 1's three stacks will be rendered here -->
+        </div>
+    </div>
+    <div id="controls-bottom">
+        <button id="getHintButton">✨ 獲取提示 ✨</button>
+        <button id="getSummaryButton" style="display: none;">✨ 遊戲總結 ✨</button>
+        <button id="resetButton">重新開始</button>
+    </div>
+
+    <script>
+        // 獲取Canvas元素和其2D繪圖上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const messageBox = document.getElementById('message-box');
+        const resetButton = document.getElementById('resetButton');
+        const getHintButton = document.getElementById('getHintButton');
+        const getSummaryButton = document.getElementById('getSummaryButton'); // 新增的獲取總結按鈕
+
+        // 遊戲配置
+        const BOARD_SIZE = 4; // 4x4 棋盤
+        let CELL_SIZE = 125; // 每個格子的寬度和高度都設為 125，使其為正方形
+        // 棋子大小比例 (相對於 CELL_SIZE)，直徑縮小 10% (原值乘以 0.9)
+        const PIECE_SIZES = [0.4 * 0.9, 0.6 * 0.9, 0.8 * 0.9, 1.0 * 0.9]; // [0.36, 0.54, 0.72, 0.9]
+        const PIECE_COUNT_PER_SIZE = 3; // 每種大小的棋子數量
+        const PIECE_COLORS = {
+            PLAYER1: '#34495e', // 深藍色 (黑色棋子)
+            PLAYER2: '#ecf0f1'  // 淺灰色 (白色棋子)
+        };
+
+        // 遊戲狀態變數
+        let board = []; // 棋盤狀態，每個格子是一個棋子堆疊的陣列
+        let player1Pieces = []; // 玩家1未使用的棋子，現在是三疊棋子的陣列
+        let player2Pieces = []; // 玩家2未使用的棋子，現在是三疊棋子的陣列
+        let currentPlayer = 1; // 當前玩家 (1 或 2)
+        let selectedPiece = null; // 當前選中的棋子 { piece: {}, source: 'stack' | 'board', row: int, col: int, stackIndex: int }
+        let isGameOver = false; // 遊戲是否結束
+        let winnerPlayer = 0; // 獲勝玩家的編號
+        let gameHistory = []; // 儲存遊戲歷史，用於總結
+
+        // 煙火效果相關變數
+        let particles = [];
+        let fireworksAnimationFrameId = null; // 用於儲存 requestAnimationFrame 的 ID，以便取消動畫
+        let winTextAlpha = 0; // "WIN" 文字的透明度
+
+        // 設置Canvas尺寸 (初始設置，會在 resizeCanvas 中更新)
+        canvas.width = BOARD_SIZE * CELL_SIZE;
+        canvas.height = BOARD_SIZE * CELL_SIZE;
+
+        /**
+         * 將座標轉換為棋盤標記 (例如: [0,0] -> A1)
+         * @param {number} row - 行索引
+         * @param {number} col - 列索引
+         * @returns {string} 棋盤標記
+         */
+        function coordsToNotation(row, col) {
+            const colChar = String.fromCharCode(65 + col);
+            const rowNum = row + 1;
+            return `${colChar}${rowNum}`;
+        }
+
+        /**
+         * 初始化遊戲狀態
+         */
+        function initializeGame() {
+            board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null).map(() => []));
+            player1Pieces = [[], [], []]; // 玩家1的三疊棋子
+            player2Pieces = [[], [], []]; // 玩家2的三疊棋子
+            currentPlayer = 1;
+            selectedPiece = null;
+            isGameOver = false;
+            winnerPlayer = 0; // 重置獲勝玩家
+            gameHistory = []; // 清空遊戲歷史
+            messageBox.textContent = ''; // 清空訊息
+            getHintButton.disabled = false; // 啟用提示按鈕
+            getSummaryButton.style.display = 'none'; // 隱藏總結按鈕
+
+            // 清除任何正在進行的煙火動畫
+            if (fireworksAnimationFrameId) {
+                cancelAnimationFrame(fireworksAnimationFrameId);
+                fireworksAnimationFrameId = null;
+            }
+            particles = []; // 清空煙火粒子
+            winTextAlpha = 0; // 重置文字透明度
+
+            // 生成所有12顆棋子
+            let allPlayer1Pieces = [];
+            let allPlayer2Pieces = [];
+            let pieceIdCounter = 0;
+
+            PIECE_SIZES.forEach((sizeRatio, index) => {
+                for (let i = 0; i < PIECE_COUNT_PER_SIZE; i++) {
+                    allPlayer1Pieces.push({
+                        id: `p1-${pieceIdCounter++}`,
+                        size: sizeRatio * CELL_SIZE * 0.5, // 半徑基於 CELL_SIZE
+                        color: PIECE_COLORS.PLAYER1,
+                        originalSizeIndex: index // 用於排序和判斷大小 (0: 最小, 3: 最大)
+                    });
+                    allPlayer2Pieces.push({
+                        id: `p2-${pieceIdCounter++}`,
+                        size: sizeRatio * CELL_SIZE * 0.5, // 半徑基於 CELL_SIZE
+                        color: PIECE_COLORS.PLAYER2,
+                        originalSizeIndex: index // 用於排序和判斷大小
+                    });
+                }
+            });
+
+            // 根據大小從大到小排序，這樣在堆疊時小的在下面大的在上面
+            // 這裡先全部排序，然後再分發到三疊中，確保每疊內部也是從小到大
+            allPlayer1Pieces.sort((a, b) => a.originalSizeIndex - b.originalSizeIndex);
+            allPlayer2Pieces.sort((a, b) => a.originalSizeIndex - b.originalSizeIndex);
+
+            // 將棋子分發到三疊中，每疊4顆
+            for (let i = 0; i < 12; i++) {
+                player1Pieces[i % 3].push(allPlayer1Pieces[i]);
+                player2Pieces[i % 3].push(allPlayer2Pieces[i]);
+            }
+
+            renderGame();
+            updateMessage(`玩家 ${currentPlayer} 回合。請選擇一顆棋子。`);
+        }
+
+        /**
+         * 繪製棋盤
+         */
+        function drawBoard() {
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    ctx.fillStyle = (row + col) % 2 === 0 ? '#d2b48c' : '#8b4513'; // 淺棕色和深棕色
+                    ctx.fillRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    ctx.strokeStyle = '#5a3b1f'; // 格子邊框
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(col * CELL_SIZE, row * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+                    // 繪製格子座標
+                    ctx.fillStyle = '#333'; // 文字顏色
+                    ctx.font = `${CELL_SIZE * 0.15}px Inter`; // 字體大小基於 CELL_SIZE
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    const colChar = String.fromCharCode(65 + col); // A, B, C, D
+                    const rowNum = row + 1; // 1, 2, 3, 4
+                    ctx.fillText(`${colChar}${rowNum}`, col * CELL_SIZE + 5, row * CELL_SIZE + 5); // 放置在左上角
+                }
+            }
+        }
+
+        /**
+         * 繪製棋子堆疊
+         * @param {Array<Object>} stack - 棋子堆疊陣列
+         * @param {number} x - 繪製中心X座標
+         * @param {number} y - 繪製中心Y座標
+         */
+        function drawPieceStack(stack, x, y) {
+            if (stack.length === 0) return;
+
+            // 從最底層（最小的）開始繪製
+            for (let i = 0; i < stack.length; i++) {
+                const piece = stack[i];
+                const radius = piece.size;
+                const color = piece.color;
+
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 如果是選中的棋子，繪製選中邊框
+                if (selectedPiece && selectedPiece.piece.id === piece.id) {
+                    ctx.strokeStyle = 'gold';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+
+                // 繪製棋子編號
+                ctx.fillStyle = piece.color === PIECE_COLORS.PLAYER2 ? '#333' : '#ecf0f1'; // 根據棋子顏色調整數字顏色
+                ctx.font = `${radius * 0.8}px Inter`; // 數字大小
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const pieceNumber = BOARD_SIZE - piece.originalSizeIndex; // 最大為1，最小為4
+                ctx.fillText(pieceNumber.toString(), x, y);
+            }
+        }
+
+        /**
+         * 渲染整個遊戲畫面
+         */
+        function renderGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBoard();
+
+            // 繪製棋盤上的棋子
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const stack = board[row][col];
+                    if (stack.length > 0) {
+                        const centerX = col * CELL_SIZE + CELL_SIZE / 2;
+                        const centerY = row * CELL_SIZE + CELL_SIZE / 2;
+                        drawPieceStack(stack, centerX, centerY);
+                    }
+                }
+            }
+            renderPlayerStacks();
+        }
+
+        /**
+         * 渲染玩家未使用的棋子堆疊 (三列顯示)
+         */
+        function renderPlayerStacks() {
+            const player1StacksWrapper = document.getElementById('player1-stacks-wrapper');
+            const player2StacksWrapper = document.getElementById('player2-stacks-wrapper');
+            player1StacksWrapper.innerHTML = '';
+            player2StacksWrapper.innerHTML = '';
+
+            // 渲染玩家2的三疊棋子 (現在在左邊)
+            player2Pieces.forEach((stack, stackIndex) => {
+                const stackColumnDiv = document.createElement('div');
+                stackColumnDiv.className = 'player-stack-column';
+                player2StacksWrapper.appendChild(stackColumnDiv);
+
+                // 從最底層（最小的）開始顯示
+                stack.forEach((piece, pieceIndex) => {
+                    const pieceDiv = document.createElement('div');
+                    pieceDiv.className = 'piece-preview';
+                    pieceDiv.style.width = `${piece.size * 2}px`;
+                    pieceDiv.style.height = `${piece.size * 2}px`;
+                    pieceDiv.style.backgroundColor = piece.color;
+                    // 計算底部位置以模擬堆疊視覺效果，增加重疊
+                    pieceDiv.style.bottom = `${pieceIndex * (piece.size * 0.1)}px`; // 調整此值以控制重疊程度 (更小的值表示更多重疊)
+                    pieceDiv.style.zIndex = pieceIndex; // 小的棋子有較低的z-index，確保大的棋子覆蓋在上面
+
+                    pieceDiv.dataset.id = piece.id;
+                    pieceDiv.dataset.player = 2;
+                    pieceDiv.dataset.stackIndex = stackIndex; // 標記來自哪個堆疊
+                    pieceDiv.dataset.pieceIndexInStack = pieceIndex; // 標記在堆疊中的索引
+
+                    if (selectedPiece && selectedPiece.piece.id === piece.id) {
+                        pieceDiv.classList.add('selected');
+                    }
+
+                    // 繪製棋子編號
+                    const pieceNumberSpan = document.createElement('span');
+                    pieceNumberSpan.textContent = BOARD_SIZE - piece.originalSizeIndex; // 最大為1，最小為4
+                    pieceNumberSpan.style.color = piece.color === PIECE_COLORS.PLAYER2 ? 'black' : 'white'; // 根據棋子顏色調整數字顏色
+                    pieceNumberSpan.style.fontSize = `${piece.size * 0.7}px`; // 數字大小
+                    pieceNumberSpan.style.textShadow = '0 0 2px rgba(255,255,255,0.7)'; // 陰影讓數字更清晰
+                    pieceDiv.appendChild(pieceNumberSpan);
+
+
+                    // 只有每個堆疊最上面的棋子可以被點擊
+                    if (pieceIndex === stack.length - 1) {
+                        pieceDiv.onclick = () => handlePieceSelectionFromStack(piece, 2, stackIndex);
+                    } else {
+                        pieceDiv.style.cursor = 'not-allowed'; // 不可點擊的棋子
+                        pieceDiv.style.opacity = '0.7';
+                    }
+                    stackColumnDiv.appendChild(pieceDiv);
+                });
+            });
+
+            // 渲染玩家1的三疊棋子 (現在在右邊)
+            player1Pieces.forEach((stack, stackIndex) => {
+                const stackColumnDiv = document.createElement('div');
+                stackColumnDiv.className = 'player-stack-column';
+                player1StacksWrapper.appendChild(stackColumnDiv);
+
+                stack.forEach((piece, pieceIndex) => {
+                    const pieceDiv = document.createElement('div');
+                    pieceDiv.className = 'piece-preview';
+                    pieceDiv.style.width = `${piece.size * 2}px`;
+                    pieceDiv.style.height = `${piece.size * 2}px`;
+                    pieceDiv.style.backgroundColor = piece.color;
+                    pieceDiv.style.bottom = `${pieceIndex * (piece.size * 0.1)}px`; // 調整此值以控制重疊程度 (更小的值表示更多重疊)
+                    pieceDiv.style.zIndex = pieceIndex;
+
+                    pieceDiv.dataset.id = piece.id;
+                    pieceDiv.dataset.player = 1;
+                    pieceDiv.dataset.stackIndex = stackIndex;
+                    pieceDiv.dataset.pieceIndexInStack = pieceIndex;
+
+                    if (selectedPiece && selectedPiece.piece.id === piece.id) {
+                        pieceDiv.classList.add('selected');
+                    }
+
+                    // 繪製棋子編號
+                    const pieceNumberSpan = document.createElement('span');
+                    pieceNumberSpan.textContent = BOARD_SIZE - piece.originalSizeIndex; // 最大為1，最小為4
+                    pieceNumberSpan.style.color = piece.color === PIECE_COLORS.PLAYER2 ? 'black' : 'white'; // 根據棋子顏色調整數字顏色
+                    pieceNumberSpan.style.fontSize = `${piece.size * 0.7}px`; // 數字大小
+                    pieceNumberSpan.style.textShadow = '0 0 2px rgba(255,255,255,0.7)'; // 陰影讓數字更清晰
+                    pieceDiv.appendChild(pieceNumberSpan);
+
+                    if (pieceIndex === stack.length - 1) {
+                        pieceDiv.onclick = () => handlePieceSelectionFromStack(piece, 1, stackIndex);
+                    } else {
+                        pieceDiv.style.cursor = 'not-allowed';
+                        pieceDiv.style.opacity = '0.7';
+                    }
+                    stackColumnDiv.appendChild(pieceDiv);
+                });
+            });
+
+            // 標記當前玩家的棋子區域
+            player1StacksWrapper.classList.toggle('active', currentPlayer === 1);
+            player2StacksWrapper.classList.toggle('active', currentPlayer === 2);
+        }
+
+        /**
+         * 從玩家堆疊中選擇棋子
+         * @param {Object} piece - 選中的棋子物件
+         * @param {number} player - 選擇棋子的玩家
+         * @param {number} stackIndex - 棋子來自哪個堆疊 (0, 1, 或 2)
+         */
+        function handlePieceSelectionFromStack(piece, player, stackIndex) {
+            if (isGameOver || player !== currentPlayer) {
+                updateMessage(`現在是玩家 ${currentPlayer} 的回合。`);
+                return;
+            }
+
+            const playerStacks = currentPlayer === 1 ? player1Pieces : player2Pieces;
+            const targetStack = playerStacks[stackIndex];
+
+            // 確保只能選擇點擊的堆疊最上面的棋子
+            if (targetStack.length === 0 || targetStack[targetStack.length - 1].id !== piece.id) {
+                updateMessage('你只能選擇該堆疊最上面的棋子。');
+                return;
+            }
+
+            selectedPiece = { piece: piece, source: 'stack', player: player, stackIndex: stackIndex };
+            updateMessage(`玩家 ${currentPlayer} 已選擇棋子。請點擊棋盤上的空格或較小的棋子來放置。`);
+            renderGame(); // 重新渲染以顯示選中狀態
+        }
+
+        /**
+         * 處理棋盤點擊事件
+         * @param {Event} event - 點擊事件
+         */
+        function handleCanvasClick(event) {
+            if (isGameOver) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
+
+            const col = Math.floor(x / CELL_SIZE); // 使用 CELL_SIZE
+            const row = Math.floor(y / CELL_SIZE); // 使用 CELL_SIZE
+
+            if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
+                return; // 點擊在棋盤外
+            }
+
+            // 如果沒有選中的棋子，則嘗試從棋盤上選擇
+            if (!selectedPiece) {
+                handlePieceSelectionFromBoard(row, col);
+            } else {
+                // 如果有選中的棋子，則嘗試放置或移動
+                handlePiecePlacementOrMove(row, col);
+            }
+        }
+
+        /**
+         * 從棋盤上選擇棋子
+         * @param {number} row - 行
+         * @param {number} col - 列
+         */
+        function handlePieceSelectionFromBoard(row, col) {
+            const stack = board[row][col];
+            if (stack.length === 0) {
+                updateMessage('請先選擇一顆棋子，或者點擊有棋子的格子來移動。');
+                return;
+            }
+
+            const topPiece = stack[stack.length - 1]; // 最上面的棋子
+            const pieceOwner = topPiece.color === PIECE_COLORS.PLAYER1 ? 1 : 2;
+
+            if (pieceOwner !== currentPlayer) {
+                updateMessage(`你只能移動自己的棋子。現在是玩家 ${currentPlayer} 的回合。`);
+                return;
+            }
+
+            selectedPiece = { piece: topPiece, source: 'board', row: row, col: col, player: currentPlayer };
+            updateMessage(`玩家 ${currentPlayer} 已選擇棋盤上的棋子 (${coordsToNotation(row, col)})。請點擊鄰近的空格或較小的棋子來移動。`);
+            renderGame();
+        }
+
+        /**
+         * 處理棋子放置或移動
+         * @param {number} targetRow - 目標行
+         * @param {number} targetCol - 目標列
+         */
+        function handlePiecePlacementOrMove(targetRow, targetCol) {
+            const targetStack = board[targetRow][targetCol];
+            const topTargetPiece = targetStack.length > 0 ? targetStack[targetStack.length - 1] : null;
+            const selectedPieceObj = selectedPiece.piece;
+
+            // 記錄當前移動
+            const move = {
+                player: currentPlayer,
+                pieceSizeIndex: selectedPieceObj.originalSizeIndex,
+                pieceColor: selectedPieceObj.color === PIECE_COLORS.PLAYER1 ? 'Player1' : 'Player2',
+                type: selectedPiece.source === 'stack' ? 'place' : 'move',
+                target: coordsToNotation(targetRow, targetCol)
+            };
+
+            if (selectedPiece.source === 'board') {
+                // 從棋盤移動
+                const sourceRow = selectedPiece.row;
+                const sourceCol = selectedPiece.col;
+
+                // 不能移動到原來的格子
+                if (sourceRow === targetRow && sourceCol === targetCol) {
+                    updateMessage('你不能移動到原來的格子。請選擇不同的目標。');
+                    selectedPiece = null; // 取消選擇
+                    renderGame();
+                    return;
+                }
+
+                // 只能移動到鄰近的格子 (水平、垂直、對角線)
+                const isAdjacent = Math.abs(sourceRow - targetRow) <= 1 &&
+                                   Math.abs(sourceCol - targetCol) <= 1 &&
+                                   !(Math.abs(sourceRow - targetRow) === 0 && Math.abs(sourceCol - targetCol) === 0);
+
+                if (!isAdjacent) {
+                    updateMessage('你只能移動到鄰近的格子。');
+                    selectedPiece = null; // 取消選擇
+                    renderGame();
+                    return;
+                }
+                move.source = coordsToNotation(sourceRow, sourceCol);
+            }
+
+            // 檢查放置/覆蓋規則
+            if (topTargetPiece && selectedPieceObj.originalSizeIndex <= topTargetPiece.originalSizeIndex) {
+                // 如果目標格子有棋子，且選中的棋子不比它大
+                updateMessage('你只能將較大的棋子覆蓋在較小的棋子上面。');
+                selectedPiece = null; // 取消選擇
+                renderGame();
+                return;
+            }
+
+            // 執行移動或放置
+            if (selectedPiece.source === 'stack') {
+                // 從堆疊放置
+                const playerStacks = currentPlayer === 1 ? player1Pieces : player2Pieces;
+                playerStacks[selectedPiece.stackIndex].pop(); // 從特定的堆疊中移除最上面的棋子
+                board[targetRow][targetCol].push(selectedPieceObj);
+                updateMessage(`玩家 ${currentPlayer} 放置了一顆棋子在 ${coordsToNotation(targetRow, targetCol)}。`);
+            } else {
+                // 從棋盤移動
+                const sourceStack = board[selectedPiece.row][selectedPiece.col];
+                sourceStack.pop(); // 從原格子移除最上面的棋子
+                board[targetRow][targetCol].push(selectedPieceObj);
+                updateMessage(`玩家 ${currentPlayer} 移動了一顆棋子從 ${coordsToNotation(selectedPiece.row, selectedPiece.col)} 到 ${coordsToNotation(targetRow, targetCol)}。`);
+            }
+
+            gameHistory.push(move); // 記錄移動歷史
+            selectedPiece = null; // 清除選中的棋子
+
+            // 檢查勝利條件：先檢查當前玩家，再檢查對手
+            let winner = 0;
+            if (checkWinConditionForPlayer(currentPlayer)) {
+                winner = currentPlayer;
+            } else {
+                const otherPlayer = currentPlayer === 1 ? 2 : 1;
+                if (checkWinConditionForPlayer(otherPlayer)) {
+                    winner = otherPlayer;
+                }
+            }
+
+            if (winner !== 0) {
+                isGameOver = true;
+                winnerPlayer = winner; // 儲存獲勝玩家
+                updateMessage(`恭喜！玩家 ${winner} 獲勝！`);
+                getHintButton.disabled = true; // 遊戲結束，禁用提示按鈕
+                getSummaryButton.style.display = 'block'; // 顯示總結按鈕
+                startFireworks(); // 觸發煙火效果
+            } else {
+                switchPlayer();
+            }
+            renderGame();
+        }
+
+        /**
+         * 切換玩家
+         */
+        function switchPlayer() {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updateMessage(`玩家 ${currentPlayer} 回合。請選擇一顆棋子。`);
+        }
+
+        /**
+         * 檢查特定玩家的勝利條件 (四子連線，依據最上層棋子顏色)
+         * @param {number} playerNum - 要檢查的玩家編號 (1 或 2)
+         * @returns {boolean} - 如果該玩家獲勝則返回 true
+         */
+        function checkWinConditionForPlayer(playerNum) {
+            const playerColor = playerNum === 1 ? PIECE_COLORS.PLAYER1 : PIECE_COLORS.PLAYER2;
+
+            // 輔助函數：檢查一系列格子是否都包含指定玩家的頂層棋子
+            const checkSequence = (cells) => {
+                return cells.every(([r, c]) =>
+                    board[r][c].length > 0 && board[r][c][board[r][c].length - 1].color === playerColor
+                );
+            };
+
+            // 檢查行 (四子連線)
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                if (checkSequence([[r, 0], [r, 1], [r, 2], [r, 3]])) return true;
+            }
+
+            // 檢查列 (四子連線)
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (checkSequence([[0, c], [1, c], [2, c], [3, c]])) return true;
+            }
+
+            // 檢查主對角線 (左上到右下)
+            if (checkSequence([[0, 0], [1, 1], [2, 2], [3, 3]])) return true;
+
+            // 檢查反對角線 (右上到左下)
+            if (checkSequence([[0, 3], [1, 2], [2, 1], [3, 0]])) return true;
+
+            return false;
+        }
+
+        /**
+         * 更新遊戲訊息
+         * @param {string} message - 要顯示的訊息
+         */
+        function updateMessage(message) {
+            messageBox.textContent = message;
+        }
+
+        /**
+         * 啟動煙火效果
+         */
+        function startFireworks() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            particles = []; // 清空現有粒子
+            winTextAlpha = 1; // "WIN" 文字從完全不透明開始
+
+            // 生成多個煙火爆炸效果
+            for (let b = 0; b < 3; b++) { // 3 次爆炸
+                setTimeout(() => {
+                    const hue = Math.random() * 360; // 隨機顏色
+                    const numParticles = 80; // 每次爆炸的粒子數量
+                    for (let i = 0; i < numParticles; i++) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = Math.random() * 5 + 2; // 隨機速度
+                        particles.push({
+                            x: centerX,
+                            y: centerY,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            color: `hsl(${hue}, 100%, 50%)`,
+                            life: 100, // 粒子壽命
+                            originalRadius: 3 // 初始半徑
+                        });
+                    }
+                }, b * 500); // 錯開每次爆炸的時間
+            }
+
+            if (!fireworksAnimationFrameId) {
+                animateFireworks(); // 如果動畫未運行，則啟動動畫循環
+            }
+
+            // 在一段時間後停止煙火效果和文字
+            setTimeout(() => {
+                if (fireworksAnimationFrameId) {
+                    cancelAnimationFrame(fireworksAnimationFrameId);
+                    fireworksAnimationFrameId = null;
+                }
+                particles = []; // 清空畫布上的粒子
+                winTextAlpha = 0; // 完全隱藏文字
+                renderGame(); // 重新渲染遊戲棋盤以清除任何殘留的粒子和文字
+            }, 5000); // 煙火和文字持續 5 秒
+        }
+
+        /**
+         * 更新並繪製煙火粒子和「WIN」文字
+         */
+        function animateFireworks() {
+            // 重新渲染遊戲棋盤，確保煙火繪製在棋盤之上
+            renderGame();
+
+            ctx.save(); // 保存當前畫布狀態
+            ctx.globalCompositeOperation = 'lighter'; // 混合模式，使粒子更亮
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05; // 簡單的重力效果
+
+                p.life -= 1; // 減少壽命
+
+                if (p.life > 0) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.originalRadius * (p.life / 100), 0, Math.PI * 2); // 隨著壽命減少而縮小
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 100; // 逐漸淡出
+                    ctx.fill();
+                } else {
+                    particles.splice(i, 1); // 移除已死亡的粒子
+                }
+            }
+
+            ctx.restore(); // 恢復畫布狀態
+
+            // 繪製 "WIN" 文字
+            if (winTextAlpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = winTextAlpha;
+                ctx.fillStyle = winnerPlayer === 1 ? PIECE_COLORS.PLAYER1 : PIECE_COLORS.PLAYER2; // 根據獲勝玩家的顏色顯示文字
+                ctx.font = `bold ${canvas.width * 0.2}px Inter`; // 字體大小根據棋盤寬度調整
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+                ctx.shadowBlur = 10;
+                ctx.fillText('WIN', canvas.width / 2, canvas.height / 2);
+                ctx.restore();
+
+                // 逐漸淡出文字
+                winTextAlpha -= 0.01; // 調整此值以控制淡出速度
+                if (winTextAlpha < 0) winTextAlpha = 0;
+            }
+
+
+            if (particles.length > 0 || winTextAlpha > 0) { // 只要還有粒子或文字未完全淡出，就繼續動畫
+                fireworksAnimationFrameId = requestAnimationFrame(animateFireworks);
+            } else {
+                fireworksAnimationFrameId = null; // 所有粒子和文字都已消失，停止循環
+                renderGame(); // 最後一次渲染以確保棋盤乾淨
+            }
+        }
+
+        /**
+         * 獲取 LLM 提示
+         */
+        async function getLLMHint() {
+            if (isGameOver) {
+                updateMessage('遊戲已結束，無法獲取提示。');
+                return;
+            }
+            getHintButton.disabled = true; // 禁用按鈕防止重複點擊
+            const originalMessage = messageBox.textContent;
+            updateMessage('✨ 正在思考最佳策略... ✨');
+
+            // 構建棋盤狀態的文字表示
+            let boardStateText = "Current board state:\n";
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                boardStateText += `Row ${r}: [`;
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const stack = board[r][c];
+                    if (stack.length > 0) {
+                        const topPiece = stack[stack.length - 1];
+                        const playerPrefix = topPiece.color === PIECE_COLORS.PLAYER1 ? 'P1' : 'P2';
+                        boardStateText += `${playerPrefix}-${BOARD_SIZE - topPiece.originalSizeIndex}`; // P1-1 (最大), P1-4 (最小)
+                    } else {
+                        boardStateText += `E`; // Empty
+                    }
+                    if (c < BOARD_SIZE - 1) {
+                        boardStateText += ", ";
+                    }
+                }
+                boardStateText += "]\n";
+            }
+
+            // 構建當前玩家可用棋子的文字表示
+            const currentPlayerPieces = currentPlayer === 1 ? player1Pieces : player2Pieces;
+            let availablePiecesText = `Player ${currentPlayer}'s available pieces: [`;
+            let flatAvailablePieces = [];
+            currentPlayerPieces.forEach(stack => {
+                // 只考慮每疊最上面的棋子
+                if (stack.length > 0) {
+                    const topPiece = stack[stack.length - 1];
+                    const playerPrefix = topPiece.color === PIECE_COLORS.PLAYER1 ? 'P1' : 'P2';
+                    flatAvailablePieces.push(`${playerPrefix}-${BOARD_SIZE - topPiece.originalSizeIndex}`);
+                }
+            });
+            availablePiecesText += flatAvailablePieces.join(', ') + "]\n";
+
+            const prompt = `
+${boardStateText}
+${availablePiecesText}
+Current player is Player ${currentPlayer} (color: ${currentPlayer === 1 ? '黑色' : '白色'}).
+Objective: Get four of your pieces (topmost piece in a stack) in a row, column, or diagonal. You can place a piece from your available pieces onto an empty spot or on top of a smaller piece (piece number 1 is largest, 4 is smallest). You can also move your topmost piece from one cell to an adjacent cell (horizontal, vertical, or diagonal) if the target cell is empty or has a smaller piece.
+Provide a concise strategic hint for Player ${currentPlayer}'s next move. Focus on how to achieve a 4-in-a-row or block the opponent. Do not suggest specific coordinates or piece IDs, just general strategy. Respond in Traditional Chinese.
+`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // Canvas will automatically provide the API key
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const hint = result.candidates[0].content.parts[0].text;
+                    updateMessage(`AI提示：${hint}`);
+                } else {
+                    updateMessage('無法獲取提示，請稍後再試。');
+                    console.error('Gemini API returned an unexpected structure:', result);
+                }
+            } catch (error) {
+                console.error('Error fetching Gemini API hint:', error);
+                updateMessage('獲取提示時發生錯誤。');
+            } finally {
+                getHintButton.disabled = false; // 重新啟用按鈕
+            }
+        }
+
+        /**
+         * 獲取 LLM 遊戲總結
+         */
+        async function getLLMSummary() {
+            if (!isGameOver) {
+                updateMessage('遊戲尚未結束，無法獲取總結。');
+                return;
+            }
+            getSummaryButton.disabled = true; // 禁用按鈕防止重複點擊
+            const originalMessage = messageBox.textContent;
+            updateMessage('✨ 正在分析遊戲... ✨');
+
+            // 構建最終棋盤狀態的文字表示
+            let finalBoardStateText = "Final board state:\n";
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                finalBoardStateText += `Row ${r}: [`;
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const stack = board[r][c];
+                    if (stack.length > 0) {
+                        const topPiece = stack[stack.length - 1];
+                        const playerPrefix = topPiece.color === PIECE_COLORS.PLAYER1 ? 'P1' : 'P2';
+                        finalBoardStateText += `${playerPrefix}-${BOARD_SIZE - topPiece.originalSizeIndex}`;
+                    } else {
+                        finalBoardStateText += `E`;
+                    }
+                    if (c < BOARD_SIZE - 1) {
+                        finalBoardStateText += ", ";
+                    }
+                }
+                finalBoardStateText += "]\n";
+            }
+
+            // 構建遊戲歷史的文字表示
+            let historyText = "Moves made during the game:\n";
+            gameHistory.forEach((move, index) => {
+                const pieceSize = BOARD_SIZE - move.pieceSizeIndex; // 轉換為1-4號棋
+                const moveDescription = move.type === 'place'
+                    ? `Player ${move.player} placed piece ${pieceSize} at ${move.target}.`
+                    : `Player ${move.player} moved piece ${pieceSize} from ${move.source} to ${move.target}.`;
+                historyText += `${index + 1}. ${moveDescription}\n`;
+            });
+
+            const prompt = `
+The following is a game of 4x4 board game where players place or move pieces to achieve four-in-a-row. Larger pieces can cover smaller ones.
+Game ended with Player ${winnerPlayer} winning.
+
+${finalBoardStateText}
+${historyText}
+
+Please provide a concise summary of the game, highlighting key strategic moments or turning points, and briefly analyze how the winning player achieved victory. Limit the summary to 3-4 sentences. Respond in Traditional Chinese.
+`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // Canvas will automatically provide the API key
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const summary = result.candidates[0].content.parts[0].text;
+                    updateMessage(`AI總結：${summary}`);
+                } else {
+                    updateMessage('無法獲取遊戲總結，請稍後再試。');
+                    console.error('Gemini API returned an unexpected structure for summary:', result);
+                }
+            } catch (error) {
+                console.error('Error fetching Gemini API summary:', error);
+                updateMessage('獲取遊戲總結時發生錯誤。');
+            } finally {
+                getSummaryButton.disabled = false; // 重新啟用按鈕
+            }
+        }
+
+
+        // 事件監聽器
+        canvas.addEventListener('click', handleCanvasClick);
+        resetButton.addEventListener('click', initializeGame);
+        getHintButton.addEventListener('click', getLLMHint);
+        getSummaryButton.addEventListener('click', getLLMSummary); // 監聽獲取總結按鈕
+
+        // 初始化遊戲
+        initializeGame();
+
+        // 調整Canvas大小以適應響應式佈局
+        function resizeCanvas() {
+            // 設定 Canvas 為其固定的理想大小 (正方形)
+            canvas.width = BOARD_SIZE * CELL_SIZE;
+            canvas.height = BOARD_SIZE * CELL_SIZE;
+
+            // 重新計算棋子半徑，基於固定的 CELL_SIZE
+            PIECE_SIZES.forEach((sizeRatio, index) => {
+                player1Pieces.forEach(stack => {
+                    stack.forEach(piece => {
+                        if (piece.originalSizeIndex === index) piece.size = sizeRatio * CELL_SIZE * 0.5;
+                    });
+                });
+                player2Pieces.forEach(stack => {
+                    stack.forEach(piece => {
+                        if (piece.originalSizeIndex === index) piece.size = sizeRatio * CELL_SIZE * 0.5;
+                    });
+                });
+            });
+            renderGame(); // 重新渲染遊戲
+        }
+
+        // 初始載入和窗口改變時調整Canvas
+        window.addEventListener('load', resizeCanvas);
+        window.addEventListener('resize', resizeCanvas);
+
+    </script>
+</body>
+</html>
